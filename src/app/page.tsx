@@ -174,6 +174,7 @@ export default function Home() {
   // Listen for account changes and update UI
   useEffect(() => {
     if (typeof window !== 'undefined' && window.ethereum) {
+      const ethereum = window.ethereum;
       const handleAccountsChanged = (accounts: string[]) => {
         if (accounts.length > 0) {
           setWalletAddress(accounts[0]);
@@ -185,9 +186,9 @@ export default function Home() {
           setPortfolioData({ totalValue: 0, tokens: [], defiPositions: [], totalYield: 0 });
         }
       };
-      window.ethereum.on('accountsChanged', handleAccountsChanged);
+      ethereum.on('accountsChanged', handleAccountsChanged);
       return () => {
-        window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+        ethereum.removeListener('accountsChanged', handleAccountsChanged);
       };
     }
   }, [fetchPortfolioData]);
