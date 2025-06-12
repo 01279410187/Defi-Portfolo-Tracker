@@ -45,6 +45,19 @@ export const TOKEN_ADDRESSES = {
   WETH: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
 } as const;
 
+// Define interfaces for DeFi positions
+export interface DefiPosition {
+  protocol: string;
+  type: string;
+  token: string;
+  amount: string;
+  value: number;
+  apy?: number;
+  yield?: number;
+  poolAddress?: string;
+  contractAddress?: string;
+}
+
 // Initialize Web3 provider
 export const getProvider = (): ethers.providers.Web3Provider | null => {
   if (typeof window !== 'undefined' && window.ethereum) {
@@ -132,7 +145,7 @@ export const getTokenBalance = async (
 };
 
 // Get Uniswap V3 positions (enhanced real implementation)
-export const getUniswapPositions = async (walletAddress: string): Promise<any[]> => {
+export const getUniswapPositions = async (walletAddress: string): Promise<DefiPosition[]> => {
   const provider = getProvider();
   if (!provider) return [];
   
@@ -147,14 +160,14 @@ export const getUniswapPositions = async (walletAddress: string): Promise<any[]>
     try {
       // Get balance of position NFTs
       const balance = await positionManager.balanceOf(walletAddress);
-      const positions = [];
+      const positions: DefiPosition[] = [];
       
       // If user has position NFTs, try to get details
       if (balance.gt(0)) {
         for (let i = 0; i < Math.min(balance.toNumber(), 10); i++) { // Limit to 10 positions
           try {
             const tokenId = await positionManager.tokenOfOwnerByIndex(walletAddress, i);
-            const position = await positionManager.positions(tokenId);
+            await positionManager.positions(tokenId);
             
             // This is a simplified version - in a real app you'd calculate actual values
             positions.push({
@@ -195,7 +208,7 @@ export const getUniswapPositions = async (walletAddress: string): Promise<any[]>
 };
 
 // Get Aave lending positions (enhanced real implementation)
-export const getAavePositions = async (walletAddress: string): Promise<any[]> => {
+export const getAavePositions = async (walletAddress: string): Promise<DefiPosition[]> => {
   const provider = getProvider();
   if (!provider) return [];
   
@@ -215,7 +228,7 @@ export const getAavePositions = async (walletAddress: string): Promise<any[]> =>
         { address: '0x6B175474E89094C44Da98b954EedeAC495271d0F', symbol: 'DAI' }, // DAI
       ];
       
-      const positions = [];
+      const positions: DefiPosition[] = [];
       
       for (const asset of aaveAssets) {
         try {
@@ -268,7 +281,7 @@ export const getAavePositions = async (walletAddress: string): Promise<any[]> =>
 };
 
 // Get Compound lending positions (enhanced real implementation)
-export const getCompoundPositions = async (walletAddress: string): Promise<any[]> => {
+export const getCompoundPositions = async (walletAddress: string): Promise<DefiPosition[]> => {
   const provider = getProvider();
   if (!provider) return [];
   
@@ -280,7 +293,7 @@ export const getCompoundPositions = async (walletAddress: string): Promise<any[]
       { address: '0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643', symbol: 'cDAI', underlying: 'DAI' }, // cDAI
     ];
     
-    const positions = [];
+    const positions: DefiPosition[] = [];
     
     for (const cToken of compoundTokens) {
       try {
