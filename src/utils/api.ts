@@ -34,8 +34,24 @@ export interface TokenMarketData {
   };
 }
 
+export interface TokenBalance {
+  symbol: string;
+  balance: string;
+  contractAddress: string | null;
+}
+
+export interface DefiPosition {
+  protocol: string;
+  type: string;
+  token: string;
+  amount: string;
+  value: number;
+  apy?: number;
+  yield?: number;
+}
+
 // Simple cache for API responses
-const cache = new Map<string, { data: any; timestamp: number }>();
+const cache = new Map<string, { data: TokenMarketData; timestamp: number }>();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 // Rate limiting
@@ -128,7 +144,7 @@ export const fetchTokenData = async (tokenIds: string[]): Promise<TokenPrice[]> 
 };
 
 // Fetch wallet token balances (enhanced with real data support)
-export const fetchWalletBalances = async (address: string): Promise<any[]> => {
+export const fetchWalletBalances = async (): Promise<TokenBalance[]> => {
   try {
     // In a real implementation, you would:
     // 1. Use Etherscan API to get token transfers
@@ -136,7 +152,7 @@ export const fetchWalletBalances = async (address: string): Promise<any[]> => {
     // 3. Use DeFi protocol APIs to get positions
     
     // For now, return mock data with some randomization for demo
-    const mockBalances = [
+    const mockBalances: TokenBalance[] = [
       {
         symbol: 'ETH',
         balance: (Math.random() * 5 + 0.1).toFixed(4), // Random ETH balance
@@ -179,7 +195,7 @@ export const fetchWalletBalances = async (address: string): Promise<any[]> => {
 };
 
 // Fetch DeFi positions (enhanced with real data support)
-export const fetchDefiPositions = async (address: string): Promise<any[]> => {
+export const fetchDefiPositions = async (): Promise<DefiPosition[]> => {
   try {
     // In a real implementation, you would:
     // 1. Query Uniswap V3 positions
@@ -187,7 +203,7 @@ export const fetchDefiPositions = async (address: string): Promise<any[]> => {
     // 3. Query Compound lending positions
     
     // Enhanced mock data with randomization
-    const mockPositions = [];
+    const mockPositions: DefiPosition[] = [];
     
     // Randomly add Uniswap position
     if (Math.random() > 0.3) {
@@ -198,35 +214,33 @@ export const fetchDefiPositions = async (address: string): Promise<any[]> => {
         amount: `${(Math.random() * 2 + 0.5).toFixed(2)} ETH + ${(Math.random() * 5000 + 1000).toFixed(0)} USDC`,
         value: Math.random() * 10000 + 2000,
         apy: Math.random() * 20 + 5,
-        poolAddress: '0x8ad599c3A0ff1De082011EFDDc58f1908eb6e6D8',
+        yield: Math.random() * 200 + 50,
       });
     }
-    
+
     // Randomly add Aave position
     if (Math.random() > 0.4) {
       mockPositions.push({
         protocol: 'Aave',
         type: 'Supply',
         token: 'USDC',
-        amount: `${(Math.random() * 5000 + 500).toFixed(0)} USDC`,
-        value: Math.random() * 5000 + 500,
+        amount: `${(Math.random() * 5000 + 1000).toFixed(0)} USDC`,
+        value: Math.random() * 5000 + 1000,
         apy: Math.random() * 5 + 1,
-        yield: Math.random() * 100 + 10,
-        contractAddress: '0xBcca60bB61934080951369a648Fb03DF4F96263C',
+        yield: Math.random() * 100 + 20,
       });
     }
-    
+
     // Randomly add Compound position
     if (Math.random() > 0.5) {
       mockPositions.push({
         protocol: 'Compound',
         type: 'Supply',
         token: 'ETH',
-        amount: `${(Math.random() * 3 + 0.1).toFixed(2)} ETH`,
-        value: Math.random() * 10000 + 1000,
-        apy: Math.random() * 4 + 1,
-        yield: Math.random() * 150 + 20,
-        contractAddress: '0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5',
+        amount: `${(Math.random() * 1 + 0.1).toFixed(2)} ETH`,
+        value: Math.random() * 3000 + 500,
+        apy: Math.random() * 3 + 1,
+        yield: Math.random() * 50 + 10,
       });
     }
 
@@ -238,30 +252,27 @@ export const fetchDefiPositions = async (address: string): Promise<any[]> => {
 };
 
 // Calculate total portfolio value
-export const calculatePortfolioValue = (tokens: any[], prices: TokenMarketData): number => {
+export const calculatePortfolioValue = (tokens: TokenBalance[], prices: TokenMarketData): number => {
   return tokens.reduce((total, token) => {
     const price = prices[token.symbol.toLowerCase()]?.usd || 0;
-    return total + (parseFloat(token.balance) * price);
+    return total + parseFloat(token.balance) * price;
   }, 0);
 };
 
-// Calculate total yield
-export const calculateTotalYield = (positions: any[]): number => {
-  return positions.reduce((total, position) => {
-    return total + (position.yield || 0);
-  }, 0);
+// Calculate total yield from positions
+export const calculateTotalYield = (positions: DefiPosition[]): number => {
+  return positions.reduce((total, position) => total + (position.yield || 0), 0);
 };
 
-// Clear cache (useful for testing)
+// Cache management functions
 export const clearCache = () => {
   cache.clear();
-  console.log('API cache cleared');
+  console.log('Cache cleared');
 };
 
-// Get cache statistics
 export const getCacheStats = () => {
   return {
     size: cache.size,
-    keys: Array.from(cache.keys()),
+    entries: Array.from(cache.keys()),
   };
 }; 

@@ -1,16 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Wallet, TrendingUp, DollarSign, Shield, Activity, Database, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { fetchTokenPrices } from '@/utils/api';
 import { getEthBalance, getTokenBalance, getUniswapPositions, getAavePositions, getCompoundPositions, formatAddress, formatCurrency } from '@/utils/web3';
-import { ethers } from 'ethers';
 
 // Extend Window interface to include ethereum
 declare global {
   interface Window {
-    ethereum?: any;
+    ethereum?: {
+      request: (args: { method: string; params?: unknown[] }) => Promise<string[]>;
+      on: (event: string, callback: (accounts: string[]) => void) => void;
+      removeListener: (event: string, callback: (accounts: string[]) => void) => void;
+    };
   }
 }
 
@@ -50,57 +53,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [dataSource, setDataSource] = useState<'mock' | 'real'>('real');
 
-  // Listen for account changes and update UI
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.ethereum) {
-      const handleAccountsChanged = (accounts: string[]) => {
-        if (accounts.length > 0) {
-          setWalletAddress(accounts[0]);
-          setIsConnected(true);
-          fetchPortfolioData(accounts[0]);
-        } else {
-          setIsConnected(false);
-          setWalletAddress('');
-          setPortfolioData({ totalValue: 0, tokens: [], defiPositions: [], totalYield: 0 });
-        }
-      };
-      window.ethereum.on('accountsChanged', handleAccountsChanged);
-      return () => {
-        window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
-      };
-    }
-  }, []);
-
-  const connectWallet = async () => {
-    if (typeof window === 'undefined' || !window.ethereum) {
-      toast.error('MetaMask not found! Please install MetaMask extension first.');
-      return;
-    }
-    try {
-      setIsLoading(true);
-      toast.loading('Opening MetaMask...', { id: 'wallet-connect' });
-      const accounts: string[] = await window.ethereum.request({
-        method: 'eth_requestAccounts',
-      });
-      if (!accounts || accounts.length === 0) throw new Error('No accounts found');
-      setWalletAddress(accounts[0]);
-      setIsConnected(true);
-      toast.success(`Wallet connected: ${formatAddress(accounts[0])}`, { id: 'wallet-connect' });
-      await fetchPortfolioData(accounts[0]);
-    } catch (error: any) {
-      if (error.code === 4001) {
-        toast.error('Connection rejected by user', { id: 'wallet-connect' });
-      } else if (error.code === -32002) {
-        toast.error('Please check MetaMask popup and approve connection', { id: 'wallet-connect' });
-      } else {
-        toast.error(`Connection failed: ${error.message}`, { id: 'wallet-connect' });
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchMockData = async (): Promise<PortfolioData> => {
+  const fetchMockData = useCallback(async (): Promise<PortfolioData> => {
     return {
       totalValue: 15420.50,
       tokens: [
@@ -138,9 +91,9 @@ export default function Home() {
       ],
       totalYield: 135.68
     };
-  };
+  }, []);
 
-  const fetchRealData = async (address: string): Promise<PortfolioData> => {
+  const fetchRealData = useCallback(async (address: string): Promise<PortfolioData> => {
     try {
       toast.loading('Fetching real blockchain data...', { id: 'data-fetch' });
       const tokenIds = ['ethereum', 'uniswap', 'aave', 'compound-governance-token', 'dai', 'tether', 'weth'];
@@ -178,7 +131,7 @@ export default function Home() {
               value: value
             });
           }
-        } catch (error) {
+        } catch {
           // Continue with other tokens even if one fails
         }
       }
@@ -199,13 +152,13 @@ export default function Home() {
       };
       toast.success('Real data loaded successfully!', { id: 'data-fetch' });
       return realData;
-    } catch (error) {
+    } catch {
       toast.error('Failed to fetch real data, showing mock data instead', { id: 'data-fetch' });
       return await fetchMockData();
     }
-  };
+  }, [fetchMockData]);
 
-  const fetchPortfolioData = async (address: string) => {
+  const fetchPortfolioData = useCallback(async (address: string) => {
     setIsLoading(true);
     let data: PortfolioData;
     if (dataSource === 'real') {
@@ -216,6 +169,57 @@ export default function Home() {
     }
     setPortfolioData(data);
     setIsLoading(false);
+  }, [dataSource, fetchRealData, fetchMockData]);
+
+  // Listen for account changes and update UI
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.ethereum) {
+      const handleAccountsChanged = (accounts: string[]) => {
+        if (accounts.length > 0) {
+          setWalletAddress(accounts[0]);
+          setIsConnected(true);
+          fetchPortfolioData(accounts[0]);
+        } else {
+          setIsConnected(false);
+          setWalletAddress('');
+          setPortfolioData({ totalValue: 0, tokens: [], defiPositions: [], totalYield: 0 });
+        }
+      };
+      window.ethereum.on('accountsChanged', handleAccountsChanged);
+      return () => {
+        window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+      };
+    }
+  }, [fetchPortfolioData]);
+
+  const connectWallet = async () => {
+    if (typeof window === 'undefined' || !window.ethereum) {
+      toast.error('MetaMask not found! Please install MetaMask extension first.');
+      return;
+    }
+    try {
+      setIsLoading(true);
+      toast.loading('Opening MetaMask...', { id: 'wallet-connect' });
+      const accounts: string[] = await window.ethereum.request({
+        method: 'eth_requestAccounts',
+      });
+      if (!accounts || accounts.length === 0) throw new Error('No accounts found');
+      setWalletAddress(accounts[0]);
+      setIsConnected(true);
+      toast.success(`Wallet connected: ${formatAddress(accounts[0])}`, { id: 'wallet-connect' });
+      await fetchPortfolioData(accounts[0]);
+    } catch (error: unknown) {
+      const err = error as { code?: number; message?: string };
+      if (err.code === 4001) {
+        toast.error('Connection rejected by user', { id: 'wallet-connect' });
+      } else if (err.code === -32002) {
+        toast.error('Please check MetaMask popup and approve connection', { id: 'wallet-connect' });
+      } else {
+        toast.error(`Connection failed: ${err.message || 'Unknown error'}`, { id: 'wallet-connect' });
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const toggleDataSource = async () => {
@@ -287,7 +291,7 @@ export default function Home() {
           </div>
           <div className="mt-4 text-sm text-gray-300">
             {dataSource === 'mock' ? (
-              <p>📊 Using mock data for demonstration. Switch to "Real Data" to see your actual blockchain data.</p>
+              <p>📊 Using mock data for demonstration. Switch to &quot;Real Data&quot; to see your actual blockchain data.</p>
             ) : (
               <p>🔗 Connected to real blockchain data. This shows your actual wallet balances and DeFi positions.</p>
             )}
